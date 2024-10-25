@@ -272,7 +272,7 @@ class NovelBo{
 			Mix_PauseMusic();
 		}
 
-		void destruct(){ // since not everyone is using pointers, I decided to make destruct a public method.
+		void destruct(){ // since not everyone is using pointers, I decided to make destruct a public method. (probably a bad idea.)
 			SDL_DestroyRenderer(this->rend);
 			SDL_DestroyWindow(this->window);
 
@@ -281,7 +281,7 @@ class NovelBo{
 			this->buttons.clear();
 
 			this->save->save();
-			delete this->save; // sounds spooky if u dont know what delete on a pointer does.
+			//delete this->save; // sounds spooky if u dont know what delete on a pointer does.
 		}
 
 		void saveGame(){
