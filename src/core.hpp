@@ -15,6 +15,10 @@
 #include "config.hpp"
 #include "save.hpp"
 
+const std::string auto_skip_words[] = {
+	"};"
+};
+
 struct Background{
 	std::string path="NULL";
 	SDL_Texture* texture=nullptr;
@@ -98,7 +102,6 @@ class NovelBo{
 
 			std::string t(text);
 
-			for(int i = t.length(); i < (mode.w / t.length() / size); i++){t+=" ";}
 			SDL_Color fgC = {fr, fg, fb};
 			SDL_Surface* surface = TTF_RenderText_Blended(font, t.c_str(), fgC);
 			SDL_Surface* surfaceBG = SDL_CreateRGBSurface(0, w, h, 16, br, bg, bb, ba);
@@ -106,7 +109,7 @@ class NovelBo{
 
 			bool saveQuit=false;
 			
-			if(!surface){if(LOG_ERROR){std::cerr << "ERROR CREATING SURFACE" << std::endl;} saveQuit=true;}
+			if(!surface){if(LOG_ERROR){std::cerr << "ERROR CREATING SURFACE!" << std::endl;} saveQuit=true;}
 
 			SDL_Texture* texture = SDL_CreateTextureFromSurface(this->rend, surface);
 			if(!texture){if(LOG_ERROR){std::cerr << "ERROR LOADING TEXTURE!" << std::endl;} saveQuit=true;}
@@ -126,7 +129,7 @@ class NovelBo{
 
 			textLoc.x = x;
 			textLoc.y = y;
-			textLoc.w = w;
+			textLoc.w = (mode.w / (size / 4)) * (t.size());
 			textLoc.h = h;
 
 			SDL_RenderCopy(this->rend, textureBG, nullptr, &textLoc); // fill the bg
@@ -198,7 +201,7 @@ class NovelBo{
 					button->callback(this->save, button->text);
 
 					if(LOG_LOGS){std::cout << "COLLIDE!" << std::endl;}
-					this->buttons.erase(this->buttons.begin() + i);
+					this->buttons.clear();
 				}
 			}
 		} // process button click
@@ -275,6 +278,8 @@ class NovelBo{
 
 			Mix_FreeMusic(this->nowPlaying);
 
+			this->buttons.clear();
+
 			this->save->save();
 			delete this->save; // sounds spooky if u dont know what delete on a pointer does.
 		}
@@ -304,7 +309,14 @@ class ScriptParser{
 
 
 			std::string tmp;
-			int num = this->game->save->getInt("dialog_num");
+			int num;
+			
+			try{
+				num = this->game->save->getInt("dialog_num");
+			}
+			catch(...){
+				num = 0;
+			}
 
 			if(LOG_LOGS){std::cout << "GOT SCRIPT FILE LINE " << num << "." << std::endl;}
 
@@ -363,7 +375,7 @@ class ScriptParser{
 						}
 
 						if(LOG_LOGS){std::cout << "RENDERING FOR FNAME: " << name << std::endl;}
-						if(!std::getline(*this->f, offset)){
+						if(!std::getline(*this->f, offset, ';')){
 							if(LOG_ERROR){std::cerr << "ERROR WHEN PARSING X OFFSET FOR IMAGE " << name << " !" << std::endl;} return;
 						}
 
@@ -372,16 +384,17 @@ class ScriptParser{
 					}
 					case 1: {
 						std::string imgName;
-						if(!std::getline(*this->f, imgName)){
+						if(!std::getline(*this->f, imgName, ';')){
 							if(LOG_ERROR){std::cerr << "ERROR WHEN READING IMG NAME TO DELETE!" << std::endl;}
 						}
+
 						this->delImage(imgName);
 						return;
 					}
 
 					case 3: {
 							std::string bgName;
-							if(!std::getline(*this->f, bgName)){
+							if(!std::getline(*this->f, bgName, ';')){
 								if(LOG_ERROR){std::cerr << "ERROR LOADING BACKGROUND IMAGE NAME!";}
 								return;
 							}
@@ -389,12 +402,54 @@ class ScriptParser{
 							this->game->changeBackground(bgName.c_str());
 							return;
 						}
+					case 4:
+						{
+							std::string params;
+							if(!std::getline(*this->f, params, ';')){if(LOG_ERROR){std::cerr << "FAILED TO PARSE CHOICE PARAMS!" << std::endl;}}
+
+							char* param;
+							param = strtok((char*)params.c_str(), "/");
+
+							game->addChoiceButton(std::string(param));
+							while((param = strtok(NULL, "/")) != NULL){
+								game->addChoiceButton(std::string(param));
+							}
+							break;
+						}
 					case 5: {
+							std::string condition;
+							if(!std::getline(*this->f, condition, '{')){
+								if(LOG_ERROR){
+									std::cerr << "FAILED TO GET IF CONDITION!" << std::endl;
+								}
+							}
+
+							std::string conditionValue = this->game->save->getString(condition);
+
+							if(LOG_LOGS){std::cout << "VALUE (" << condition << "): " << conditionValue << std::endl;}
+
+							if(conditionValue.length() > 0 && conditionValue != "NULL"){
+								if(LOG_LOGS){std::cout << "DETECTED BUTTON PRESS IN IF STATEMENT." << std::endl;}
+								return;
+							}
+
+							std::string l;
+							while(std::getline(*this->f, l, ';')){
+								this->linesParsed++;
+								if(l.find("}") != std::string::npos){return;}
+							}
+							return;
+						}
+					case 6: {
 							std::string songName;
-							if(!std::getline(*this->f, songName)){if(LOG_ERROR){std::cerr << "FAILED TO FIND MUSIC FILE NAME" << std::endl;} return;};
+							if(!std::getline(*this->f, songName, ';')){if(LOG_ERROR){std::cerr << "FAILED TO FIND MUSIC FILE NAME" << std::endl;} return;}
 
 							this->game->changeSound(songName.c_str());
 							this->game->soundStart();
+						}
+					case 7: {
+							std::string skip;
+							if(!std::getline(*this->f, skip, '}')){if(LOG_ERROR){std::cout << "FAILED TO SKIP LINE" << std::endl;}}
 						}
 				}
 
@@ -402,11 +457,19 @@ class ScriptParser{
 			}
 
 			std::string remainingLine;
-			std::getline(*this->f, remainingLine);
-			this->current = line + " " + remainingLine;
+			std::getline(*this->f, remainingLine, ';');
+			std::string cur = line + " " + remainingLine;
 
 			this->linesParsed++;
 			this->game->save->variables["dialog_num"] = std::to_string(this->linesParsed);
+
+			for(int i = 0; i < sizeof(auto_skip_words) / sizeof(auto_skip_words[0]); i++){
+				if(cur == auto_skip_words[i]){return;}
+			}
+			
+			std::cout << cur << std::endl;
+
+			this->current = cur;
 		}
 
 		void animFG(std::string name, int xToMove, int step){

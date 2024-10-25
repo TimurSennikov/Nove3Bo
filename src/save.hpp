@@ -35,8 +35,8 @@ class SaveFile{
 
 			std::ofstream o(this->f);
 			for(std::map<std::string, std::string>::iterator i = this->variables.begin(); i != this->variables.end(); i++){
-				if((i->second == PRESSED_VALUE || i->second == CHOSEN_VALUE) && IGNORE_BUTTONS){continue;} // ignoring
-
+				if((i->second == PRESSED_VALUE || i->second == CHOSEN_VALUE) && IGNORE_BUTTONS){std::cout << "FSAVER: LOG: IGNORING " << i->first << "=" << i->second << " (BUTTON IGNORING ENABLED)." << std::endl; continue;} // ignoring
+				if(i->second.length() < 1){if(LOG_WARNING){std::cout << "FSAVER: WARNING: FOUND ZERO LENGTH STRING, IGNORING." << std::endl;} continue;}
 				o << i->first << "=" << i->second << std::endl;
 			}
 
@@ -46,6 +46,8 @@ class SaveFile{
 		
 		int getInt(std::string key){
 			try{
+				std::cout << this->variables[key].length() << std::endl;
+
 				if(this->variables[key].length() < 1){return 0;}
 				std::string value = this->variables[key];
 				return std::stoi(value);
