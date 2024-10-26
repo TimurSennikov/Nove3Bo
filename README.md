@@ -40,9 +40,9 @@ At the End of script (EOS) parsing will just be stopped.
 #### script instructions list
 
 ```
-0 path offset;
+0 path X Y;
 ```
-shows image from path at window X offset == window width / offset.length(), which means that to show image on different positions you can just change offset symbols count.
+shows image from path at specified offset, computed as window width / X and window height / Y, which means that "0 path 2 2" will show the image in yhe center of the screen.
 
 ```
 1 path;
