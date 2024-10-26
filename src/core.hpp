@@ -34,6 +34,12 @@ struct MenuButton{
 	void (*callback)(void*, std::string);
 };
 
+struct onScreenText{
+	std::string text;
+	SDL_Rect border;
+	SDL_Texture* t;
+};
+
 namespace callbacks{
 	void BUTTON_CHOSEN_CALLBACK(void* param, std::string name){
 		SaveFile* save = (SaveFile*)param;
@@ -54,6 +60,9 @@ class NovelBo{
 	SDL_Window* window=nullptr;
 	SDL_Renderer* rend=nullptr;
 	Mix_Music* nowPlaying=nullptr;
+
+	onScreenText text;
+
 	std::vector<MenuButton> buttons;
 
 	public:
@@ -95,6 +104,13 @@ class NovelBo{
 		}
 
 		void drawText(const char* text, int x, int y, int w, int h, int size, const char* fontName="resources/font.ttf", uint8_t br=0, uint8_t bg=0, uint8_t bb=0, uint8_t ba=1, uint8_t fr=255, uint8_t fg=255, uint8_t fb=255){
+			if(this->text.text == text){
+				SDL_RenderCopy(this->rend, this->text.t, nullptr, &this->text.border);
+				return;
+			}
+
+			SDL_DestroyTexture(this->text.t); // destroy the texture if it changed.
+
 			TTF_Font* font = TTF_OpenFont(fontName, size);
 			if(!font){if(LOG_ERROR)std::cout << "ERROR LOADING FONT! " << SDL_GetError() << std::endl; exit(1);}
 
@@ -135,8 +151,10 @@ class NovelBo{
 			SDL_RenderCopy(this->rend, textureBG, nullptr, &textLoc); // fill the bg
 			SDL_RenderCopy(this->rend, texture, nullptr, &textLoc); // print the text
 
+			this->text.text = text;
+			this->text.t = texture;
+
 			SDL_FreeSurface(surface);
-			SDL_DestroyTexture(texture);
 			SDL_FreeSurface(surfaceBG);
 			SDL_DestroyTexture(textureBG);
 
@@ -252,7 +270,7 @@ class NovelBo{
 
 			SDL_DisplayMode mode = screen::getScreenSize();
 
-			this->drawText(text, 0, mode.h / 3, mode.w, 50, 128);
+			this->drawText(text, 0, mode.h / 1.5, mode.w, 50, 128);
 		}
 
 		void changeSound(const char* path){
