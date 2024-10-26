@@ -16,7 +16,7 @@
 #include "save.hpp"
 
 const std::string auto_skip_words[] = {
-	"};"
+	"}"
 };
 
 struct Background{
@@ -103,7 +103,7 @@ class NovelBo{
 			std::string t(text);
 
 			SDL_Color fgC = {fr, fg, fb};
-			SDL_Surface* surface = TTF_RenderText_Blended(font, t.c_str(), fgC);
+			SDL_Surface* surface = TTF_RenderUTF8_Blended(font, t.c_str(), fgC);
 			SDL_Surface* surfaceBG = SDL_CreateRGBSurface(0, w, h, 16, br, bg, bb, ba);
 			SDL_Texture* textureBG = SDL_CreateTextureFromSurface(this->rend, surfaceBG);
 
@@ -129,7 +129,7 @@ class NovelBo{
 
 			textLoc.x = x;
 			textLoc.y = y;
-			textLoc.w = (mode.w / (size / 4)) * (t.size());
+			textLoc.w = ((size / 4) * (t.length() / 2));
 			textLoc.h = h;
 
 			SDL_RenderCopy(this->rend, textureBG, nullptr, &textLoc); // fill the bg
@@ -197,7 +197,7 @@ class NovelBo{
 		void buttonAction(int x, int y){
 			for(int i = 0; i < this->buttons.size(); i++){
 				MenuButton* button = &this->buttons[i];
-				if(x >= button->x && x >= button->y && x <= button->w + button->x && y <= button->h + button->y){
+				if(y >= button->y && y <= button->y + button->h){
 					button->callback(this->save, button->text);
 
 					if(LOG_LOGS){std::cout << "COLLIDE!" << std::endl;}
@@ -248,9 +248,11 @@ class NovelBo{
 		}
 
 		void dialogue(const char* text){
+			if(this->buttons.size() > 0){return;} // do not display the dialogue if there is an active choice.
+
 			SDL_DisplayMode mode = screen::getScreenSize();
 
-			this->drawText(text, 0, (mode.h / 4) * 3, mode.w, mode.h / 10, 128);
+			this->drawText(text, 0, mode.h / 3, mode.w, 50, 128);
 		}
 
 		void changeSound(const char* path){
@@ -281,7 +283,7 @@ class NovelBo{
 			this->buttons.clear();
 
 			this->save->save();
-			//delete this->save; // sounds spooky if u dont know what delete on a pointer does.
+			delete this->save; // sounds spooky if u dont know what delete on a pointer does.
 		}
 
 		void saveGame(){
@@ -329,13 +331,13 @@ class ScriptParser{
 			delete f;
 		}
 
-		void addImage(std::string image, int x){
+		void addImage(std::string image, int x, int y=500){
 			ScriptImage img;
 			img.fileName = image;
 
 			SDL_DisplayMode m = screen::getScreenSize();
 			img.x = m.w / x;
-			img.y = m.h / 2;
+			img.y = y;
 
 			this->images.push_back(img);
 		}
@@ -366,22 +368,18 @@ class ScriptParser{
 			if(command >= 0){
 				switch(command){
 					case 0: {
-						std::string name;
-						std::string offset;
+							std::vector<std::string> args;
+							std::string tmp;
+							for(int i = 0; i < 3; i++){
+								std::getline(*this->f, tmp, (i==2?';':' '));
+								args.push_back(tmp);
+							}
 
-						if(!std::getline(*this->f, name, ' ')){
-							if(LOG_ERROR){std::cerr << "ERROR WHEN PARSING IMAGE FILE NAME!" << std::endl;}
+							if(args.size() < 3){if(LOG_ERROR){std::cerr << "FAILED TO RETRIEVE COMMAND ARGUMENTS!" << std::endl;} return;}
+
+							this->addImage(args[0], std::stoi(args[1]), std::stoi(args[2])); // todo
 							return;
 						}
-
-						if(LOG_LOGS){std::cout << "RENDERING FOR FNAME: " << name << std::endl;}
-						if(!std::getline(*this->f, offset, ';')){
-							if(LOG_ERROR){std::cerr << "ERROR WHEN PARSING X OFFSET FOR IMAGE " << name << " !" << std::endl;} return;
-						}
-
-						this->addImage(name, offset.length()); // todo
-						return;
-					}
 					case 1: {
 						std::string imgName;
 						if(!std::getline(*this->f, imgName, ';')){
@@ -449,7 +447,7 @@ class ScriptParser{
 						}
 					case 7: {
 							std::string skip;
-							if(!std::getline(*this->f, skip, '}')){if(LOG_ERROR){std::cout << "FAILED TO SKIP LINE" << std::endl;}}
+							if(!std::getline(*this->f, skip, '}')){if(LOG_ERROR){if(LOG_ERROR){std::cerr << "FAILED TO USE break OPERATOR!" << std::endl;}}}
 						}
 				}
 
@@ -464,7 +462,7 @@ class ScriptParser{
 			this->game->save->variables["dialog_num"] = std::to_string(this->linesParsed);
 
 			for(int i = 0; i < sizeof(auto_skip_words) / sizeof(auto_skip_words[0]); i++){
-				if(cur == auto_skip_words[i]){return;}
+				if(cur.find(auto_skip_words[i]) != std::string::npos){return;}
 			}
 			
 			std::cout << cur << std::endl;
@@ -491,7 +489,7 @@ class ScriptParser{
 		}
 };
 
-void pollEvents(bool& running, NovelBo& game, ScriptParser& script){
+void pollEvents(bool& running, NovelBo& game, ScriptParser& script, int& fpsCap){
 	SDL_Event e;
 
 	while(SDL_PollEvent(&e)){
@@ -513,6 +511,12 @@ void pollEvents(bool& running, NovelBo& game, ScriptParser& script){
 						game.saveGame();
 
 						exit(0);
+					case SDL_SCANCODE_F3:
+						fpsCap += 10;
+						if(fpsCap >= 300){
+							fpsCap = 1;
+						}
+						break;
 				}
 				break;
 			case SDL_MOUSEBUTTONDOWN:

@@ -8,7 +8,13 @@ struct frameTime{
 	uint64_t frame=0;
 };
 
+struct localTime{
+	uint64_t frame=0;
+};
+
 namespace gameTime{
+	localTime now;
+
 	uint64_t millis(){
 		return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 	}
@@ -32,5 +38,9 @@ namespace gameTime{
 	
 	void tick(frameTime& data){
 		data.frame++;
+	}
+
+	void tick(){
+		gameTime::now.frame++;
 	}
 }
